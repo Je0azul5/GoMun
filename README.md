@@ -10,6 +10,7 @@ It offers a simple and elegant way to **organize your events alphabetically**, l
 ## 🚀 Features
 - 🅰️ **A–Z “book-style” agenda view** — browse your plans alphabetically  
 - 📝 **Add, edit, and search entries** by title or note  
+- 🔍 **Live search spellbook** — filter dreams instantly and jump into edits  
 - 💾 **Persistent storage** with Azure SQL Database  
 - ⚙️ **Full-stack monorepo setup** (frontend + backend)  
 - 🔐 Ready for **authentication** (Entra ID / JWT integration)  
@@ -96,4 +97,4 @@ Backend → http://localhost:8080/api
 ---
 
 ## 💬 Slogan
-> **“Every plan brings you closer to the moon.”**
+> **“Every dream brings you closer to the moon.”**

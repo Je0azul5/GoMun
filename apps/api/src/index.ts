@@ -71,5 +71,26 @@ app.put('/api/entries/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/entries/:id', async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ error: 'Entry id is required.' });
+    return;
+  }
+
+  try {
+    await prisma.entry.delete({ where: { id } });
+    res.status(204).send();
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2025') {
+      res.status(404).json({ error: 'Entry not found.' });
+      return;
+    }
+
+    res.status(500).json({ error: 'Unable to delete entry.' });
+  }
+});
+
 const port = Number(process.env.PORT) || 8080;
 app.listen(port, () => console.log(`🚀 GoMun API running on port ${port}`));
