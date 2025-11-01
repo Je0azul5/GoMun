@@ -63,7 +63,7 @@
 }
 
 .book-wrapper {
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
   background: linear-gradient(135deg, rgba(28, 22, 32, 0.85), rgba(18, 12, 21, 0.85));
   border-radius: 24px;
@@ -72,14 +72,15 @@
     inset 0 0 60px rgba(140, 102, 48, 0.12),
     0 35px 60px rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(206, 174, 119, 0.25);
-  display: flex;
-  flex-direction: column;
-  gap: 2.25rem;
+  display: grid;
+  gap: 2rem clamp(1.5rem, 3vw, 2.5rem);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: start;
 }
 
 .book-section {
   position: relative;
-  padding-left: clamp(3rem, 6vw, 4rem);
+  padding-left: clamp(2.75rem, 5vw, 3.5rem);
 }
 
 .section-header {
@@ -103,6 +104,52 @@
   padding: 0;
   display: grid;
   gap: 1rem;
+}
+
+.letter-pagination {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.pagination-pages {
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+.pagination-button {
+  border: 1px solid rgba(206, 174, 119, 0.35);
+  background: rgba(206, 174, 119, 0.18);
+  color: #f8e9cd;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 180ms ease;
+  font-size: 0.75rem;
+}
+
+.pagination-button:hover:not(:disabled) {
+  border-color: rgba(206, 174, 119, 0.75);
+  background: rgba(206, 174, 119, 0.35);
+  box-shadow: 0 0 18px rgba(206, 174, 119, 0.2);
+}
+
+.pagination-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.pagination-button.active {
+  background: rgba(206, 174, 119, 0.55);
+  border-color: rgba(206, 174, 119, 0.85);
+  color: #281e2b;
+  box-shadow: 0 0 18px rgba(206, 174, 119, 0.25);
 }
 
 .entry-card {
@@ -337,6 +384,7 @@
 
   .book-wrapper {
     padding: 2rem 1.25rem;
+    grid-template-columns: 1fr;
   }
 
   .book-section {

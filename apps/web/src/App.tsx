@@ -14,8 +14,14 @@ type AgendaEntry = {
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 const DEFAULT_USER_ID = (import.meta.env.VITE_DEFAULT_USER_ID ?? 'couple').trim() || 'couple';
+const ITEMS_PER_PAGE = 5;
 
 const isLatinLetter = (char: string) => /^[A-Z]$/.test(char);
+
+const letterKey = (title: string | null | undefined) => {
+  const initial = title?.trim().charAt(0).toUpperCase() ?? '';
+  return isLatinLetter(initial) ? initial : '#';
+};
 
 function formatDate(value?: string | null) {
   if (!value) return '';
@@ -34,6 +40,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [pageByLetter, setPageByLetter] = useState<Record<string, number>>({});
   const [formState, setFormState] = useState({
     title: '',
     note: '',
@@ -77,12 +84,57 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const totals: Record<string, number> = {};
+    for (const entry of entries) {
+      const key = letterKey(entry.title);
+      totals[key] = (totals[key] ?? 0) + 1;
+    }
+
+    setPageByLetter((prev) => {
+      let changed = false;
+      const next: Record<string, number> = {};
+
+      for (const [key, count] of Object.entries(totals)) {
+        const totalPages = Math.max(1, Math.ceil(count / ITEMS_PER_PAGE));
+        const current = prev[key] ?? 1;
+        const safe = Math.min(Math.max(current, 1), totalPages);
+        next[key] = safe;
+        if (safe !== current) {
+          changed = true;
+        }
+      }
+
+      for (const key of Object.keys(prev)) {
+        if (!(key in totals)) {
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        if (Object.keys(prev).length === Object.keys(next).length) {
+          let identical = true;
+          for (const key of Object.keys(next)) {
+            if (prev[key] !== next[key]) {
+              identical = false;
+              break;
+            }
+          }
+          if (identical) {
+            return prev;
+          }
+        }
+      }
+
+      return next;
+    });
+  }, [entries]);
+
   const groupedEntries = useMemo(() => {
     const bucket = new Map<string, AgendaEntry[]>();
 
     for (const entry of entries) {
-      const initial = entry.title?.trim().charAt(0).toUpperCase() ?? '';
-      const key = isLatinLetter(initial) ? initial : '#';
+      const key = letterKey(entry.title);
       const group = bucket.get(key) ?? [];
       group.push(entry);
       bucket.set(key, group);
@@ -90,13 +142,26 @@ function App() {
 
     return Array.from(bucket.entries())
       .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-      .map(([letter, items]) => ({
-        letter,
-        items: items.sort((first, second) =>
+      .map(([letter, items]) => {
+        const orderedItems = [...items].sort((first, second) =>
           first.title.localeCompare(second.title, undefined, { sensitivity: 'base' })
-        ),
-      }));
-  }, [entries]);
+        );
+        const totalPages = Math.max(1, Math.ceil(orderedItems.length / ITEMS_PER_PAGE));
+        const currentPage = Math.min(
+          Math.max(pageByLetter[letter] ?? 1, 1),
+          totalPages
+        );
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const visible = orderedItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        return {
+          letter,
+          items: orderedItems,
+          visible,
+          totalPages,
+          currentPage,
+        };
+      });
+  }, [entries, pageByLetter]);
 
   const isEditing = editingEntryId !== null;
 
@@ -131,7 +196,7 @@ function App() {
 
     const trimmedTitle = formState.title.trim();
     if (!trimmedTitle) {
-      setFormError('Every memory needs a name.');
+      setFormError('Every dream needs a name.');
       return;
     }
 
@@ -169,12 +234,20 @@ function App() {
       setEntries((prev) =>
         isEditing ? prev.map((entry) => (entry.id === saved.id ? saved : entry)) : [saved, ...prev]
       );
+      if (!isEditing) {
+        const key = letterKey(saved.title);
+        setPageByLetter((prev) => ({ ...prev, [key]: 1 }));
+      }
       closeForm();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Unable to save entry');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handlePageChange = (letter: string, page: number) => {
+    setPageByLetter((prev) => ({ ...prev, [letter]: page }));
   };
 
   return (
@@ -196,14 +269,14 @@ function App() {
 
       {!loading && !error && groupedEntries.length > 0 && (
         <div className="book-wrapper">
-          {groupedEntries.map(({ letter, items }) => (
+          {groupedEntries.map(({ letter, visible, totalPages, currentPage }) => (
             <section key={letter} className="book-section">
               <header className="section-header">
                 <span className="section-letter">{letter}</span>
               </header>
 
               <ul className="entries-list">
-                {items.map((entry) => (
+                {visible.map((entry) => (
                   <li key={entry.id} className="entry-card">
                     <div className="entry-meta-row">
                       <span className="entry-tag">{entry.userId || DEFAULT_USER_ID}</span>
@@ -224,6 +297,41 @@ function App() {
                   </li>
                 ))}
               </ul>
+              {totalPages > 1 && (
+                <nav className="letter-pagination" aria-label={`Pages for letter ${letter}`}>
+                  <button
+                    type="button"
+                    className="pagination-button"
+                    onClick={() => handlePageChange(letter, currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <div className="pagination-pages">
+                    {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+                      <button
+                        key={pageNumber}
+                        type="button"
+                        className={`pagination-button${
+                          pageNumber === currentPage ? ' active' : ''
+                        }`}
+                        onClick={() => handlePageChange(letter, pageNumber)}
+                        aria-current={pageNumber === currentPage ? 'page' : undefined}
+                      >
+                        {pageNumber}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="pagination-button"
+                    onClick={() => handlePageChange(letter, currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </nav>
+              )}
             </section>
           ))}
         </div>
