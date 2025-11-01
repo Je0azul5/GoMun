@@ -12,8 +12,7 @@ It offers a simple and elegant way to **organize your events alphabetically**, l
 - 📝 **Add, edit, and search entries** by title or note  
 - 🔍 **Live search spellbook** — filter dreams instantly and jump into edits  
 - 💾 **Persistent storage** with Azure SQL Database  
-- ⚙️ **Full-stack monorepo setup** (frontend + backend)  
-- 🔐 Ready for **authentication** (Entra ID / JWT integration)  
+- ⚙️ **Full-stack monorepo setup** (frontend + backend) 
 - ☁️ Deployable on **Azure Web App**
 
 ---
