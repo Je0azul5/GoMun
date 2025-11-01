@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
@@ -14,12 +15,27 @@ app.get('/api/entries', async (_req, res) => {
 });
 
 app.post('/api/entries', async (req, res) => {
-  const { title, note, date } = req.body;
+  const { title, note, date, userId } = req.body ?? {};
+
+  if (typeof title !== 'string' || !title.trim()) {
+    res.status(400).json({ error: 'Title is required.' });
+    return;
+  }
+
+  const defaultUserId = process.env.DEFAULT_USER_ID ?? 'couple';
+  const resolvedUserId =
+    typeof userId === 'string' && userId.trim().length > 0 ? userId.trim() : defaultUserId;
+
   const created = await prisma.entry.create({
-    data: { userId: 'demo', title, note, date: date ? new Date(date) : null },
+    data: {
+      userId: resolvedUserId,
+      title: title.trim(),
+      note: typeof note === 'string' && note.trim() ? note.trim() : null,
+      date: date ? new Date(date) : null,
+    },
   });
   res.status(201).json(created);
 });
 
-const port = process.env.PORT || 8080;
+const port = Number(process.env.PORT) || 8080;
 app.listen(port, () => console.log(`🚀 GoMun API running on port ${port}`));

@@ -12,6 +12,7 @@ type AgendaEntry = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+const DEFAULT_USER_ID = import.meta.env.VITE_DEFAULT_USER_ID ?? 'couple';
 
 const isLatinLetter = (char: string) => /^[A-Z]$/.test(char);
 
@@ -31,7 +32,11 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formState, setFormState] = useState({ title: '', note: '', date: '' });
+  const [formState, setFormState] = useState({
+    title: '',
+    note: '',
+    userId: DEFAULT_USER_ID,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -94,7 +99,7 @@ function App() {
   const closeForm = () => {
     setIsFormOpen(false);
     setFormError(null);
-    setFormState({ title: '', note: '', date: '' });
+    setFormState({ title: '', note: '', userId: DEFAULT_USER_ID });
   };
 
   const handleCreateEntry = async (event: FormEvent<HTMLFormElement>) => {
@@ -107,7 +112,7 @@ function App() {
       return;
     }
 
-    const payload: { title: string; note?: string; date?: string } = {
+    const payload: { title: string; note?: string; userId?: string } = {
       title: trimmedTitle,
     };
 
@@ -115,8 +120,11 @@ function App() {
       payload.note = formState.note.trim();
     }
 
-    if (formState.date) {
-      payload.date = formState.date;
+    const trimmedUserId = formState.userId.trim();
+    if (trimmedUserId) {
+      payload.userId = trimmedUserId;
+    } else {
+      payload.userId = DEFAULT_USER_ID;
     }
 
     setSubmitting(true);
@@ -145,8 +153,8 @@ function App() {
   return (
     <div className="agenda-shell">
       <header className="agenda-header">
-        <h1>GoMun Couple Agenda</h1>
-        <p>Every shared dream catalogued, one letter at a time.</p>
+        <h1>GoMun</h1>
+        <p>Every shared dream, catalogued — one letter at a time.</p>
         <button className="new-entry-button" type="button" onClick={() => setIsFormOpen(true)}>
           + New Entry
         </button>
@@ -214,6 +222,19 @@ function App() {
               </label>
 
               <label className="form-field">
+                <span>User</span>
+                <input
+                  type="text"
+                  name="userId"
+                  value={formState.userId}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, userId: event.target.value }))
+                  }
+                  placeholder="couple"
+                />
+              </label>
+
+              <label className="form-field">
                 <span>Note</span>
                 <textarea
                   name="note"
@@ -221,16 +242,6 @@ function App() {
                   onChange={(event) => setFormState((prev) => ({ ...prev, note: event.target.value }))}
                   placeholder="Wander the Thames at twilight, tea at Covent Garden…"
                   rows={3}
-                />
-              </label>
-
-              <label className="form-field">
-                <span>Date</span>
-                <input
-                  type="date"
-                  name="date"
-                  value={formState.date}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
                 />
               </label>
 

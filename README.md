@@ -59,6 +59,14 @@ Create a `.env` file in `apps/api/`:
 ```bash
 DATABASE_URL="sqlserver://<user>:<password>@<Server>.database.windows.net:1433;database=<DBname>;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
 PORT=8080
+DEFAULT_USER_ID="couple"
+```
+
+Optionally mirror the same default user on the frontend by adding a `.env` file under `apps/web/` with:
+
+```bash
+VITE_DEFAULT_USER_ID="couple"
+VITE_API_URL="http://localhost:8080"
 ```
 
 ### 4️⃣ Initialize the database
