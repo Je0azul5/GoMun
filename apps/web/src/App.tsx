@@ -9,10 +9,11 @@ type AgendaEntry = {
   date?: string | null;
   done: boolean;
   createdAt: string;
+  userId: string;
 };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
-const DEFAULT_USER_ID = import.meta.env.VITE_DEFAULT_USER_ID ?? 'couple';
+const DEFAULT_USER_ID = (import.meta.env.VITE_DEFAULT_USER_ID ?? 'couple').trim() || 'couple';
 
 const isLatinLetter = (char: string) => /^[A-Z]$/.test(char);
 
@@ -32,6 +33,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [formState, setFormState] = useState({
     title: '',
     note: '',
@@ -96,13 +98,34 @@ function App() {
       }));
   }, [entries]);
 
+  const isEditing = editingEntryId !== null;
+
+  const openNewEntry = () => {
+    setEditingEntryId(null);
+    setFormState({ title: '', note: '', userId: DEFAULT_USER_ID });
+    setFormError(null);
+    setIsFormOpen(true);
+  };
+
+  const openEditEntry = (entry: AgendaEntry) => {
+    setEditingEntryId(entry.id);
+    setFormState({
+      title: entry.title,
+      note: entry.note ?? '',
+      userId: entry.userId ?? DEFAULT_USER_ID,
+    });
+    setFormError(null);
+    setIsFormOpen(true);
+  };
+
   const closeForm = () => {
     setIsFormOpen(false);
     setFormError(null);
     setFormState({ title: '', note: '', userId: DEFAULT_USER_ID });
+    setEditingEntryId(null);
   };
 
-  const handleCreateEntry = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmitEntry = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
 
@@ -120,18 +143,20 @@ function App() {
       payload.note = formState.note.trim();
     }
 
-    const trimmedUserId = formState.userId.trim();
-    if (trimmedUserId) {
-      payload.userId = trimmedUserId;
-    } else {
-      payload.userId = DEFAULT_USER_ID;
+    if (!isEditing) {
+      const trimmedUserId = formState.userId.trim();
+      payload.userId = trimmedUserId || DEFAULT_USER_ID;
     }
 
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/entries`, {
-        method: 'POST',
+      const endpoint = isEditing
+        ? `${API_BASE}/api/entries/${editingEntryId}`
+        : `${API_BASE}/api/entries`;
+
+      const response = await fetch(endpoint, {
+        method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -140,8 +165,10 @@ function App() {
         throw new Error(`Unable to save entry (${response.status})`);
       }
 
-      const created: AgendaEntry = await response.json();
-      setEntries((prev) => [created, ...prev]);
+      const saved: AgendaEntry = await response.json();
+      setEntries((prev) =>
+        isEditing ? prev.map((entry) => (entry.id === saved.id ? saved : entry)) : [saved, ...prev]
+      );
       closeForm();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Unable to save entry');
@@ -154,9 +181,9 @@ function App() {
     <div className="agenda-shell">
       <header className="agenda-header">
         <h1>GoMun</h1>
-        <p>Every shared dream, catalogued — one letter at a time.</p>
-        <button className="new-entry-button" type="button" onClick={() => setIsFormOpen(true)}>
-          + New Entry
+        <p>Every shared dream — one letter at a time.</p>
+        <button className="new-entry-button" type="button" onClick={openNewEntry}>
+          + New Dream
         </button>
       </header>
 
@@ -178,6 +205,16 @@ function App() {
               <ul className="entries-list">
                 {items.map((entry) => (
                   <li key={entry.id} className="entry-card">
+                    <div className="entry-meta-row">
+                      <span className="entry-tag">{entry.userId || DEFAULT_USER_ID}</span>
+                      <button
+                        type="button"
+                        className="entry-edit-button"
+                        onClick={() => openEditEntry(entry)}
+                      >
+                        Edit
+                      </button>
+                    </div>
                     <div className="entry-title">{entry.title}</div>
                     {entry.note && <p className="entry-note">{entry.note}</p>}
                     <footer className="entry-meta">
@@ -202,13 +239,13 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="entry-modal-header">
-              <h2 id="entry-modal-title">New Shared Memory</h2>
+              <h2 id="entry-modal-title">{isEditing ? 'Edit Memory' : 'New Shared Memory'}</h2>
               <button className="modal-close" type="button" onClick={closeForm} aria-label="Close">
                 ×
               </button>
             </header>
 
-            <form className="entry-form" onSubmit={handleCreateEntry}>
+            <form className="entry-form" onSubmit={handleSubmitEntry}>
               <label className="form-field">
                 <span>Title *</span>
                 <input
@@ -221,18 +258,20 @@ function App() {
                 />
               </label>
 
-              <label className="form-field">
-                <span>User</span>
-                <input
-                  type="text"
-                  name="userId"
-                  value={formState.userId}
-                  onChange={(event) =>
-                    setFormState((prev) => ({ ...prev, userId: event.target.value }))
-                  }
-                  placeholder="couple"
-                />
-              </label>
+              {!isEditing && (
+                <label className="form-field">
+                  <span>User</span>
+                  <input
+                    type="text"
+                    name="userId"
+                    value={formState.userId}
+                    onChange={(event) =>
+                      setFormState((prev) => ({ ...prev, userId: event.target.value }))
+                    }
+                    placeholder="couple"
+                  />
+                </label>
+              )}
 
               <label className="form-field">
                 <span>Note</span>
@@ -252,7 +291,13 @@ function App() {
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting}>
-                  {submitting ? 'Inscribing…' : 'Save Memory'}
+                  {submitting
+                    ? isEditing
+                      ? 'Updating…'
+                      : 'Inscribing…'
+                    : isEditing
+                      ? 'Update Memory'
+                      : 'Save Memory'}
                 </button>
               </footer>
             </form>

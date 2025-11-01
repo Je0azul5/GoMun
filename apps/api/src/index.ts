@@ -37,5 +37,39 @@ app.post('/api/entries', async (req, res) => {
   res.status(201).json(created);
 });
 
+app.put('/api/entries/:id', async (req, res) => {
+  const { id } = req.params;
+  const { title, note } = req.body ?? {};
+
+  if (!id) {
+    res.status(400).json({ error: 'Entry id is required.' });
+    return;
+  }
+
+  if (typeof title !== 'string' || !title.trim()) {
+    res.status(400).json({ error: 'Title is required.' });
+    return;
+  }
+
+  try {
+    const updated = await prisma.entry.update({
+      where: { id },
+      data: {
+        title: title.trim(),
+        note: typeof note === 'string' && note.trim() ? note.trim() : null,
+      },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2025') {
+      res.status(404).json({ error: 'Entry not found.' });
+      return;
+    }
+
+    res.status(500).json({ error: 'Unable to update entry.' });
+  }
+});
+
 const port = Number(process.env.PORT) || 8080;
 app.listen(port, () => console.log(`🚀 GoMun API running on port ${port}`));
