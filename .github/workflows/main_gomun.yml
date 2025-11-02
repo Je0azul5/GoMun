@@ -84,4 +84,4 @@ jobs:
         with:
           app-name: 'gomun'
           slot-name: 'Production'
-          package: ./apps/api
+          package: .
