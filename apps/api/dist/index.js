@@ -447,6 +447,7 @@ var app = (0, import_express.default)();
 var prisma = new import_client.PrismaClient();
 app.use((0, import_cors.default)());
 app.use(import_express.default.json());
+app.get("/health", (_req, res) => res.status(200).send("ok"));
 app.get("/api/entries", async (_req, res) => {
   const data = await prisma.entry.findMany({ orderBy: { createdAt: "desc" } });
   res.json(data);

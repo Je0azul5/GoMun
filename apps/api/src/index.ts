@@ -8,6 +8,8 @@ const prisma = new PrismaClient();
 app.use(cors());
 app.use(express.json());
 
+app.get('/health', (_req, res) => res.status(200).send('ok'));
+
 // --- Rutas ---
 app.get('/api/entries', async (_req, res) => {
   const data = await prisma.entry.findMany({ orderBy: { createdAt: 'desc' } });
