@@ -54,7 +54,10 @@ jobs:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_BD7CA65BF42042D9AFB70E5013EAC38F }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F1FFEB9DDAA548CC83912C82E2C7B11A }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_38BF7E9C6B6F4B2081055BB5033C6725 }}
-
+      - name: Install production dependencies in Azure
+        run: |
+          cd apps/api
+          npm install --omit=dev          
       # 7️⃣ Set startup command in Azure
       - name: Set startup command
         run: |
