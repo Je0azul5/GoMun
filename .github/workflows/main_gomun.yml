@@ -41,8 +41,8 @@ jobs:
         run: npx prisma generate --schema=apps/api/prisma/schema.prisma
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          PORT: 8080
-          DEFAULT_USER_ID: couple
+          PORT: ${{ vars.PORT }}
+          DEFAULT_USER_ID: ${{ vars.DEFAULT_USER_ID }}
 
       # Build only the API workspace
       - name: Build API
