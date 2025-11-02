@@ -1,4 +1,4 @@
-name: Build and deploy Node.js app to Azure Web App - GoMun
+name: Build and deploy GoMun API to Azure Web App
 
 on:
   push:
@@ -7,71 +7,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read # Required for actions/checkout
 
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PORT: 8080
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DEFAULT_USER_ID: couple
 
     steps:
-      # Checkout repository
+      # 1️⃣ Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up Node.js
+      # 2️⃣ Setup Node
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           cache: 'npm'
 
-      # Navigate to API workspace
-      - name: Change directory to API
-        run: cd apps/api
-
-      # Install dependencies (avoiding npm ci)
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         working-directory: ./apps/api
         run: npm install
 
-      # Generate Prisma client
-      - name: Generate Prisma Client
+      # 4️⃣ Generate Prisma client
+      - name: Generate Prisma client
         working-directory: ./apps/api
         run: npx prisma generate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      # Build the API (creates dist/index.js)
+      # 5️⃣ Build the API (crea dist/index.js)
       - name: Build API
         working-directory: ./apps/api
         run: npm run build
 
-      # Upload build artifact for deploy job
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: gomun-api
-          path: apps/api/
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write  # Required for requesting the JWT
-      contents: read   # Required for actions/checkout
-
-    steps:
-      # Download artifact from build
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gomun-api
-
-      # Login to Azure
+      # 6️⃣ Login to Azure
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -79,7 +52,15 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F1FFEB9DDAA548CC83912C82E2C7B11A }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_38BF7E9C6B6F4B2081055BB5033C6725 }}
 
-      # Deploy to Azure Web App
+      # 7️⃣ Set startup command in Azure
+      - name: Set startup command
+        run: |
+          az webapp config set \
+            --name gomun \
+            --resource-group gomun \
+            --startup-file "node dist/index.js"
+
+      # 8️⃣ Deploy to Azure Web App
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
