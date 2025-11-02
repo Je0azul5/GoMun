@@ -60,11 +60,16 @@ jobs:
           npm install --omit=dev          
       # 7️⃣ Set startup command in Azure
       - name: Set startup command
-        run: |
-          az webapp config set \
-            --name gomun \
-            --resource-group gomun \
-            --startup-file "node dist/index.js"
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: 'gomun'
+          app-settings-json: |
+            [
+              {
+                "name": "STARTUP_COMMAND",
+                "value": "npm install --omit=dev && node dist/index.js"
+              }
+            ]
 
       # 8️⃣ Deploy to Azure Web App
       - name: Deploy to Azure Web App
@@ -72,4 +77,4 @@ jobs:
         with:
           app-name: 'gomun'
           slot-name: 'Production'
-          package: ./apps/api
+          package: .
