@@ -30,35 +30,42 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      # 3️⃣ Install dependencies
+      # 3️⃣ Install dependencies (root, incluye workspaces)
       - name: Install dependencies
-        working-directory: ./apps/api
-        run: npm install
+        run: npm ci
 
-      # 4️⃣ Generate Prisma client
+      # 4️⃣ Build frontend
+      - name: Build web client
+        run: npm run build -w apps/web
+
+      # 5️⃣ Adjuntar SPA al backend
+      - name: Prepare web assets
+        run: |
+          rm -rf apps/api/public
+          mkdir -p apps/api/public
+          cp -R apps/web/dist/* apps/api/public/
+
+      # 6️⃣ Generar Prisma client
       - name: Generate Prisma client
-        working-directory: ./apps/api
-        run: npx prisma generate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
 
-      # 5️⃣ Build the API (crea dist/index.js)
+      # 7️⃣ Build the API (crea dist/index.js)
       - name: Build API
-        working-directory: ./apps/api
-        run: npm run build
+        run: npm run build -w apps/api
 
-      # 6️⃣ Login to Azure
+      # 8️⃣ Login to Azure
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_BD7CA65BF42042D9AFB70E5013EAC38F }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F1FFEB9DDAA548CC83912C82E2C7B11A }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_38BF7E9C6B6F4B2081055BB5033C6725 }}
+
       - name: Install production dependencies in Azure
         run: |
           cd apps/api
-          npm install --omit=dev          
-      # 7️⃣ Set startup command in Azure
+          npm install --omit=dev
+      # 9️⃣ Set startup command in Azure
       - name: Set startup command
         uses: azure/appservice-settings@v1
         with:
@@ -67,11 +74,11 @@ jobs:
             [
               {
                 "name": "STARTUP_COMMAND",
-                "value": "npm install --omit=dev && node dist/index.js"
+                "value": "cd apps/api && node dist/index.js"
               }
             ]
 
-      # 8️⃣ Deploy to Azure Web App
+      # 🔟 Deploy to Azure Web App
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:

@@ -1,12 +1,21 @@
 import 'dotenv/config';
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 
 const app = express();
 const prisma = new PrismaClient();
+
+const staticRoot = path.join(__dirname, '..', 'public');
+const isDev = process.env.NODE_ENV === 'development';
+
 app.use(cors());
 app.use(express.json());
+
+if (!isDev) {
+  app.use(express.static(staticRoot));
+}
 
 app.get('/health', (_req, res) => res.status(200).send('ok'));
 
@@ -94,5 +103,10 @@ app.delete('/api/entries/:id', async (req, res) => {
   }
 });
 
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path === '/health' || isDev) return next();
+  res.sendFile(path.join(staticRoot, 'index.html'));
+});
+
 const port = Number(process.env.PORT) || 8080;
-app.listen(port, () => console.log(`🚀 GoMun API running on port ${port}`));
+app.listen(port, '0.0.0.0', () => console.log(`🚀 GoMun API running on port ${port}`));

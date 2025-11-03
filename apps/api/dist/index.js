@@ -96,7 +96,7 @@ var require_package = __commonJS({
 var require_main = __commonJS({
   "../../node_modules/dotenv/lib/main.js"(exports2, module2) {
     var fs = require("fs");
-    var path = require("path");
+    var path2 = require("path");
     var os = require("os");
     var crypto = require("crypto");
     var packageJson = require_package();
@@ -212,7 +212,7 @@ var require_main = __commonJS({
           possibleVaultPath = options.path.endsWith(".vault") ? options.path : `${options.path}.vault`;
         }
       } else {
-        possibleVaultPath = path.resolve(process.cwd(), ".env.vault");
+        possibleVaultPath = path2.resolve(process.cwd(), ".env.vault");
       }
       if (fs.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
@@ -220,7 +220,7 @@ var require_main = __commonJS({
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path.join(os.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path2.join(os.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -237,7 +237,7 @@ var require_main = __commonJS({
       return { parsed };
     }
     function configDotenv(options) {
-      const dotenvPath = path.resolve(process.cwd(), ".env");
+      const dotenvPath = path2.resolve(process.cwd(), ".env");
       let encoding = "utf8";
       const debug = Boolean(options && options.debug);
       const quiet = options && "quiet" in options ? options.quiet : true;
@@ -261,13 +261,13 @@ var require_main = __commonJS({
       }
       let lastError;
       const parsedAll = {};
-      for (const path2 of optionPaths) {
+      for (const path3 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs.readFileSync(path2, { encoding }));
+          const parsed = DotenvModule.parse(fs.readFileSync(path3, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e) {
           if (debug) {
-            _debug(`Failed to load ${path2} ${e.message}`);
+            _debug(`Failed to load ${path3} ${e.message}`);
           }
           lastError = e;
         }
@@ -282,7 +282,7 @@ var require_main = __commonJS({
         const shortPaths = [];
         for (const filePath of optionPaths) {
           try {
-            const relative = path.relative(process.cwd(), filePath);
+            const relative = path2.relative(process.cwd(), filePath);
             shortPaths.push(relative);
           } catch (e) {
             if (debug) {
@@ -440,13 +440,19 @@ var require_cli_options = __commonJS({
 })();
 
 // src/index.ts
+var import_path = __toESM(require("path"));
 var import_express = __toESM(require("express"));
 var import_cors = __toESM(require("cors"));
 var import_client = require("@prisma/client");
 var app = (0, import_express.default)();
 var prisma = new import_client.PrismaClient();
+var staticRoot = import_path.default.join(__dirname, "..", "public");
+var isDev = process.env.NODE_ENV === "development";
 app.use((0, import_cors.default)());
 app.use(import_express.default.json());
+if (!isDev) {
+  app.use(import_express.default.static(staticRoot));
+}
 app.get("/health", (_req, res) => res.status(200).send("ok"));
 app.get("/api/entries", async (_req, res) => {
   const data = await prisma.entry.findMany({ orderBy: { createdAt: "desc" } });
@@ -515,5 +521,9 @@ app.delete("/api/entries/:id", async (req, res) => {
     res.status(500).json({ error: "Unable to delete entry." });
   }
 });
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api") || req.path === "/health" || isDev) return next();
+  res.sendFile(import_path.default.join(staticRoot, "index.html"));
+});
 var port = Number(process.env.PORT) || 8080;
-app.listen(port, () => console.log(`\u{1F680} GoMun API running on port ${port}`));
+app.listen(port, "0.0.0.0", () => console.log(`\u{1F680} GoMun API running on port ${port}`));
