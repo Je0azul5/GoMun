@@ -45,27 +45,26 @@ jobs:
           mkdir -p apps/api/public
           cp -R apps/web/dist/* apps/api/public/
 
-      # 6️⃣ Generar Prisma client
+      # 6️⃣ Instalar dependencias de producción para la API
+      - name: Install API production dependencies
+        run: npm install --omit=dev --prefix apps/api
+
+      # 7️⃣ Generar Prisma client
       - name: Generate Prisma client
         run: npx prisma generate --schema=apps/api/prisma/schema.prisma
 
-      # 7️⃣ Build the API (crea dist/index.js)
+      # 8️⃣ Build the API (crea dist/index.js)
       - name: Build API
         run: npm run build -w apps/api
 
-      # 8️⃣ Login to Azure
+      # 9️⃣ Login to Azure
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_BD7CA65BF42042D9AFB70E5013EAC38F }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F1FFEB9DDAA548CC83912C82E2C7B11A }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_38BF7E9C6B6F4B2081055BB5033C6725 }}
-
-      - name: Install production dependencies in Azure
-        run: |
-          cd apps/api
-          npm install --omit=dev
-      # 9️⃣ Set startup command in Azure
+      # 🔟 Set startup command in Azure
       - name: Set startup command
         uses: azure/appservice-settings@v1
         with:
@@ -74,14 +73,14 @@ jobs:
             [
               {
                 "name": "STARTUP_COMMAND",
-                "value": "cd apps/api && node dist/index.js"
+                "value": "node dist/index.js"
               }
             ]
 
-      # 🔟 Deploy to Azure Web App
+      # 1️⃣1️⃣ Deploy to Azure Web App
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'gomun'
           slot-name: 'Production'
-          package: .
+          package: apps/api
