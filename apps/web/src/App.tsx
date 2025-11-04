@@ -257,7 +257,7 @@ function App() {
 
   const handleDeleteEntry = async (entry: AgendaEntry) => {
     // eslint-disable-next-line no-alert
-    const confirmation = window.confirm(`Erase "${entry.title}" from your shared chronicle?`);
+    const confirmation = window.confirm(`Erase "${entry.title}" from your dreams?`);
     if (!confirmation) return;
 
     setDeletingIds((prev) => {
@@ -353,7 +353,7 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="entry-modal-header">
-              <h2 id="entry-modal-title">{isEditing ? 'Edit Memory' : 'New Shared Memory'}</h2>
+              <h2 id="entry-modal-title">{isEditing ? 'Edit Dream' : 'New Dream'}</h2>
               <button className="modal-close" type="button" onClick={closeForm} aria-label="Close">
                 ×
               </button>
@@ -444,7 +444,7 @@ function AgendaView({
   onPageChange,
 }: AgendaViewProps) {
   if (loading) {
-    return <p className="agenda-status">Summoning your shared adventures…</p>;
+    return <p className="agenda-status">Summoning your dreams adventures…</p>;
   }
 
   if (error) {
@@ -598,7 +598,7 @@ function SearchView({
           )}
         </div>
 
-        {loading && <p className="agenda-status">Summoning your shared adventures…</p>}
+        {loading && <p className="agenda-status">Summoning your dreams…</p>}
         {!loading && error && <p className="agenda-status error">{error}</p>}
         {!loading && !error && entries.length === 0 && (
           <p className="agenda-status">Begin by conjuring your first memory together.</p>
