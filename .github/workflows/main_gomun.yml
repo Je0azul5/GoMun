@@ -82,5 +82,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'gomun'
-          slot-name: 'Production'
           package: apps/api
