@@ -16,6 +16,7 @@ jobs:
     env:
       PORT: 8080
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      VITE_API_URL: ${{ secrets.VITE_API_URL }}
       DEFAULT_USER_ID: couple
 
     steps:
