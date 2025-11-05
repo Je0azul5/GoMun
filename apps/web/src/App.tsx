@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import './App.css';
+import logoSrc from '/GoMun.png';
 
 type AgendaEntry = {
   id: string;
@@ -205,7 +206,7 @@ function App() {
 
     const trimmedTitle = formState.title.trim();
     if (!trimmedTitle) {
-      setFormError('Every memory needs a name.');
+      setFormError('Every dream needs a name.');
       return;
     }
 
@@ -295,7 +296,10 @@ function App() {
   return (
     <div className="agenda-shell">
       <header className="agenda-header">
-        <h1>GoMun</h1>
+        <div className="title-row">
+          <img src={logoSrc} alt="GoMun emblem" className="brand-mark" />
+          <h1>GoMun</h1>
+        </div>
         <p>Every shared dream — one letter at a time.</p>
         <div className="agenda-header-actions">
           <nav className="agenda-nav" aria-label="Primary navigation">
@@ -410,8 +414,8 @@ function App() {
                       ? 'Updating…'
                       : 'Inscribing…'
                     : isEditing
-                      ? 'Update Memory'
-                      : 'Save Memory'}
+                      ? 'Update Dream'
+                      : 'Save Dream'}
                 </button>
               </footer>
             </form>
@@ -452,7 +456,7 @@ function AgendaView({
   }
 
   if (sections.length === 0) {
-    return <p className="agenda-status">Begin by conjuring your first memory together.</p>;
+    return <p className="agenda-status">Our first dream together.</p>;
   }
 
   return (
@@ -601,7 +605,7 @@ function SearchView({
         {loading && <p className="agenda-status">Summoning your dreams…</p>}
         {!loading && error && <p className="agenda-status error">{error}</p>}
         {!loading && !error && entries.length === 0 && (
-          <p className="agenda-status">Begin by conjuring your first memory together.</p>
+          <p className="agenda-status">ur first dream together</p>
         )}
 
         {!loading && !error && entries.length > 0 && (
