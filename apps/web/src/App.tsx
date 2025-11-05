@@ -365,7 +365,7 @@ function App() {
 
             <form className="entry-form" onSubmit={handleSubmitEntry}>
               <label className="form-field">
-                <span>Title *</span>
+                <span>Dream</span>
                 <input
                   type="text"
                   name="title"
@@ -378,7 +378,7 @@ function App() {
 
               {!isEditing && (
                 <label className="form-field">
-                  <span>User</span>
+                  <span>Dreamer</span>
                   <input
                     type="text"
                     name="userId"
@@ -397,7 +397,7 @@ function App() {
                   name="note"
                   value={formState.note}
                   onChange={(event) => setFormState((prev) => ({ ...prev, note: event.target.value }))}
-                  placeholder="Wander the Thames at twilight, tea at Covent Garden…"
+                  placeholder="I'd like to go the moon with you someday."
                   rows={3}
                 />
               </label>
