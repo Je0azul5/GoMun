@@ -54,6 +54,7 @@ jobs:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_B09B2E9A261247F081D883EFEEE449BD }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D39F73B3DC2745E19E59756752A25FF8 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_9517DEB7DAA64618B6210F91527F0AC1 }}
+<<<<<<< HEAD
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
@@ -63,3 +64,23 @@ jobs:
           slot-name: 'Production'
           package: .
           
+=======
+      # 🔟 Set startup command in Azure
+      - name: Set startup command
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: 'gomun'
+          app-settings-json: |
+            [
+              {
+                "name": "STARTUP_COMMAND",
+                "value": "node dist/index.js"
+              }
+            ]
+      # 1️⃣1️⃣ Deploy to Azure Web App
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'gomun'
+          package: apps/api
+>>>>>>> fbd13a7 (chore: update yml variables)
