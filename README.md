@@ -2,7 +2,7 @@
 Dam
 # 🌙 GoMun — Every Plan Brings You Closer to the Moon
 
-GoMun is a **smart web agenda** built with **React + TypeScript** on the frontend and **Node.js + Express + Prisma + Azure SQL Database (SQL Server)** on the backend.  
+GoMun is a **smart web agenda** built with **React + TypeScript** on the frontend and **Node.js + Express + Prisma + Neon Postgres** on the backend.  
 It offers a simple and elegant way to **organize your events alphabetically**, like flipping through a **personal dictionary of goals**.
 
 ---
@@ -11,7 +11,7 @@ It offers a simple and elegant way to **organize your events alphabetically**, l
 - 🅰️ **A–Z “book-style” agenda view** — browse your plans alphabetically  
 - 📝 **Add, edit, and search entries** by title or note  
 - 🔍 **Live search spellbook** — filter dreams instantly and jump into edits  
-- 💾 **Persistent storage** with Azure SQL Database  
+- 💾 **Persistent storage** with Neon Postgres  
 - ⚙️ **Full-stack monorepo setup** (frontend + backend) 
 - ☁️ Deployable on **Azure Web App**
 
@@ -22,7 +22,7 @@ It offers a simple and elegant way to **organize your events alphabetically**, l
 |--------|---------------|
 | **Frontend** | React + TypeScript + Vite + Tailwind CSS |
 | **Backend** | Node.js + Express + Prisma ORM |
-| **Database** | Azure SQL Database (SQL Server) |
+| **Database** | Neon Postgres |
 | **Hosting** | Azure Web App |
 | **Package Manager** | npm Workspaces |
 | **Version Control** | Git + GitHub |
@@ -57,7 +57,7 @@ npm install
 ### 3️⃣ Configure environment variables
 Create a `.env` file in `apps/api/`:
 ```bash
-DATABASE_URL="sqlserver://<user>:<password>@<Server>.database.windows.net:1433;database=<DBname>;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+DATABASE_URL="postgresql://<user>:<password>@<host>.neon.tech/<database>?sslmode=require&channel_binding=require"
 PORT=8080
 DEFAULT_USER_ID="couple"
 ```
@@ -88,9 +88,9 @@ Backend → http://localhost:8080/api
 
 ## ☁️ Deployment (Azure)
 
-1. Provision an **Azure SQL Database** (Single Database or Elastic Pool)  
+1. Create a **Neon project** (Postgres) and copy the pooled `postgresql://` connection string  
 2. Create an **Azure Web App (Linux, Node 20)**  
-3. Add environment variables under **Configuration → Application settings**  
+3. Add environment variables under **Configuration → Application settings** (`DATABASE_URL`, `PORT`, `DEFAULT_USER_ID`, `VITE_API_URL`, `VITE_DEFAULT_USER_ID`)  
 4. Deploy using **GitHub Actions** or `az webapp deploy`
 
 ---

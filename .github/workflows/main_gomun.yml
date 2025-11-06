@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
@@ -48,12 +49,76 @@ jobs:
         with:
           name: node-app
       
+=======
+name: Build and deploy GoMun API to Azure Web App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      PORT: 8080
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      DEFAULT_USER_ID: couple
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup Node
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      # 3️⃣ Install dependencies (root, incluye workspaces)
+      - name: Install dependencies
+        run: npm ci
+
+      # 4️⃣ Build frontend
+      - name: Build web client
+        run: npm run build -w apps/web
+
+      # 5️⃣ Adjuntar SPA al backend
+      - name: Prepare web assets
+        run: |
+          rm -rf apps/api/public
+          mkdir -p apps/api/public
+          cp -R apps/web/dist/* apps/api/public/
+
+      # 6️⃣ Instalar dependencias de producción para la API
+      - name: Install API production dependencies
+        run: npm install --omit=dev --prefix apps/api
+
+      # 7️⃣ Generar Prisma client
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
+      # 8️⃣ Build the API (crea dist/index.js)
+      - name: Build API
+        run: npm run build -w apps/api
+
+      # 9️⃣ Login to Azure
+>>>>>>> 75e8d51 (chore: reconfigure pipeline and docs for Neon Postgres)
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_2943CE50157048DFA28E96E48709C35A }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_EFCF727AB6B1414D90AA3AD05EBFB1EE }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_647505A41F4C498D91D1213EAC40D0E4 }}
+<<<<<<< HEAD
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
@@ -63,3 +128,24 @@ jobs:
           slot-name: 'Production'
           package: .
           
+=======
+      # 🔟 Set startup command in Azure
+      - name: Set startup command
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: 'gomun'
+          app-settings-json: |
+            [
+              {
+                "name": "STARTUP_COMMAND",
+                "value": "node dist/index.js"
+              }
+            ]
+
+      # 1️⃣1️⃣ Deploy to Azure Web App
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'gomun'
+          package: apps/api
+>>>>>>> 75e8d51 (chore: reconfigure pipeline and docs for Neon Postgres)
