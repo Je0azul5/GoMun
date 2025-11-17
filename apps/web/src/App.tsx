@@ -301,6 +301,7 @@ function App() {
           <h1>GoMun</h1>
         </div>
         <p>Every shared dream — one letter at a time.</p>
+        <p>No dreamers to define — just you and me in this story</p>
         <div className="agenda-header-actions">
           <nav className="agenda-nav" aria-label="Primary navigation">
             <button
