@@ -655,11 +655,10 @@ type EntryCardProps = {
   onDelete: (entry: AgendaEntry) => void;
 };
 
-function EntryCard({ entry, defaultUserId, isDeleting, onEdit, onDelete }: EntryCardProps) {
+function EntryCard({ entry, isDeleting, onEdit, onDelete }: EntryCardProps) {
   return (
     <li className="entry-card">
       <div className="entry-meta-row">
-        <span className="entry-tag">{entry.userId || defaultUserId}</span>
         <div className="entry-actions">
           <button
             type="button"
