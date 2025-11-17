@@ -658,25 +658,23 @@ type EntryCardProps = {
 function EntryCard({ entry, isDeleting, onEdit, onDelete }: EntryCardProps) {
   return (
     <li className="entry-card">
-      <div className="entry-meta-row">
-        <div className="entry-actions">
-          <button
-            type="button"
-            className="entry-edit-button"
-            onClick={() => onEdit(entry)}
-            disabled={isDeleting}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className="entry-delete-button"
-            onClick={() => onDelete(entry)}
-            disabled={isDeleting}
-          >
-            {isDeleting ? 'Deleting…' : 'Delete'}
-          </button>
-        </div>
+      <div className="entry-actions">
+        <button
+          type="button"
+          className="entry-edit-button"
+          onClick={() => onEdit(entry)}
+          disabled={isDeleting}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="entry-delete-button"
+          onClick={() => onDelete(entry)}
+          disabled={isDeleting}
+        >
+          {isDeleting ? 'Deleting…' : 'Delete'}
+        </button>
       </div>
       <div className="entry-title">{entry.title}</div>
       {entry.note && <p className="entry-note">{entry.note}</p>}
