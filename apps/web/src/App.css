@@ -134,7 +134,7 @@
   border: 1px solid rgba(200, 210, 255, 0.6);
   display: grid;
   gap: 2rem clamp(1.5rem, 3vw, 2.5rem);
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   align-items: start;
 }
 
@@ -274,6 +274,39 @@
 .entry-delete-button:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+.entry-done-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 205, 232, 0.75);
+  border: 1px solid rgba(255, 184, 218, 0.65);
+  color: #6c2b40;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.entry-done-toggle input {
+  accent-color: #f6a7c7;
+  width: 16px;
+  height: 16px;
+}
+
+.entry-done-toggle:hover {
+  background: rgba(255, 196, 223, 0.9);
+  box-shadow: 0 0 12px rgba(255, 190, 217, 0.4);
+}
+
+.entry-card-done {
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(198, 212, 255, 0.7);
 }
 
 .entry-card::before {

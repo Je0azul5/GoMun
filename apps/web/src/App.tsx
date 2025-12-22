@@ -289,6 +289,30 @@ function App() {
     }
   };
 
+  const handleToggleDone = async (entry: AgendaEntry) => {
+    const nextDone = !entry.done;
+    setEntries((prev) => prev.map((item) => (item.id === entry.id ? { ...item, done: nextDone } : item)));
+
+    try {
+      const response = await fetch(`${API_BASE}/api/entries/${entry.id}/done`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ done: nextDone }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to update entry (${response.status})`);
+      }
+
+      const updated: AgendaEntry = await response.json();
+      setEntries((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (err) {
+      setEntries((prev) => prev.map((item) => (item.id === entry.id ? { ...item, done: entry.done } : item)));
+      // eslint-disable-next-line no-alert
+      alert(err instanceof Error ? err.message : 'Unable to update entry');
+    }
+  };
+
   const handlePageChange = (letter: string, page: number) => {
     setPageByLetter((prev) => ({ ...prev, [letter]: page }));
   };
@@ -301,7 +325,7 @@ function App() {
           <h1>GoMun</h1>
         </div>
         <p>Every shared dream — one letter at a time.</p>
-        <p>No dreamers to define — just you and me in this story</p>
+        <p>No dreamers to define — just you and me in this story.</p>
         <div className="agenda-header-actions">
           <nav className="agenda-nav" aria-label="Primary navigation">
             <button
@@ -330,10 +354,10 @@ function App() {
           sections={groupedSections}
           loading={loading}
           error={error}
-          defaultUserId={DEFAULT_USER_ID}
           deletingIds={deletingIds}
           onEdit={openEditEntry}
           onDelete={handleDeleteEntry}
+          onToggleDone={handleToggleDone}
           onPageChange={handlePageChange}
         />
       ) : (
@@ -341,10 +365,10 @@ function App() {
           entries={entries}
           loading={loading}
           error={error}
-          defaultUserId={DEFAULT_USER_ID}
           deletingIds={deletingIds}
           onEdit={openEditEntry}
           onDelete={handleDeleteEntry}
+          onToggleDone={handleToggleDone}
         />
       )}
 
@@ -431,10 +455,10 @@ type AgendaViewProps = {
   sections: AgendaSection[];
   loading: boolean;
   error: string | null;
-  defaultUserId: string;
   deletingIds: Set<string>;
   onEdit: (entry: AgendaEntry) => void;
   onDelete: (entry: AgendaEntry) => void;
+  onToggleDone: (entry: AgendaEntry) => void;
   onPageChange: (letter: string, page: number) => void;
 };
 
@@ -442,10 +466,10 @@ function AgendaView({
   sections,
   loading,
   error,
-  defaultUserId,
   deletingIds,
   onEdit,
   onDelete,
+  onToggleDone,
   onPageChange,
 }: AgendaViewProps) {
   if (loading) {
@@ -461,7 +485,7 @@ function AgendaView({
   }
 
   return (
-    <div className="book-wrapper">
+    <div className="book-section book-wrapper">
       {sections.map(({ letter, visible, totalPages, currentPage }) => (
         <section key={letter} className="book-section">
           <header className="section-header">
@@ -473,10 +497,10 @@ function AgendaView({
               <EntryCard
                 key={entry.id}
                 entry={entry}
-                defaultUserId={defaultUserId}
                 isDeleting={deletingIds.has(entry.id)}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onToggleDone={onToggleDone}
               />
             ))}
           </ul>
@@ -524,21 +548,13 @@ type SearchViewProps = {
   entries: AgendaEntry[];
   loading: boolean;
   error: string | null;
-  defaultUserId: string;
   deletingIds: Set<string>;
   onEdit: (entry: AgendaEntry) => void;
   onDelete: (entry: AgendaEntry) => void;
+  onToggleDone: (entry: AgendaEntry) => void;
 };
 
-function SearchView({
-  entries,
-  loading,
-  error,
-  defaultUserId,
-  deletingIds,
-  onEdit,
-  onDelete,
-}: SearchViewProps) {
+function SearchView({ entries, loading, error, deletingIds, onEdit, onDelete, onToggleDone }: SearchViewProps) {
   const [query, setQuery] = useState('');
 
   const normalizedQuery = query.trim().toLowerCase();
@@ -635,10 +651,10 @@ function SearchView({
                 <EntryCard
                   key={entry.id}
                   entry={entry}
-                  defaultUserId={defaultUserId}
                   isDeleting={deletingIds.has(entry.id)}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onToggleDone={onToggleDone}
                 />
               ))}
             </ul>
@@ -650,15 +666,15 @@ function SearchView({
 
 type EntryCardProps = {
   entry: AgendaEntry;
-  defaultUserId: string;
   isDeleting: boolean;
   onEdit: (entry: AgendaEntry) => void;
   onDelete: (entry: AgendaEntry) => void;
+  onToggleDone: (entry: AgendaEntry) => void;
 };
 
-function EntryCard({ entry, isDeleting, onEdit, onDelete }: EntryCardProps) {
+function EntryCard({ entry, isDeleting, onEdit, onDelete, onToggleDone }: EntryCardProps) {
   return (
-    <li className="entry-card">
+    <li className={`entry-card${entry.done ? ' entry-card-done' : ''}`}>
       <div className="entry-actions">
         <button
           type="button"
@@ -676,6 +692,15 @@ function EntryCard({ entry, isDeleting, onEdit, onDelete }: EntryCardProps) {
         >
           {isDeleting ? 'Deleting…' : 'Delete'}
         </button>
+        <label className="entry-done-toggle">
+          <input
+            type="checkbox"
+            checked={entry.done}
+            onChange={() => onToggleDone(entry)}
+            disabled={isDeleting}
+          />
+          <span>{entry.done ? 'Cumplido' : 'Por cumplir'}</span>
+        </label>
       </div>
       <div className="entry-title">{entry.title}</div>
       {entry.note && <p className="entry-note">{entry.note}</p>}

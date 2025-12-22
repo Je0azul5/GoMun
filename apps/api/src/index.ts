@@ -82,6 +82,31 @@ app.put('/api/entries/:id', async (req, res) => {
   }
 });
 
+app.patch('/api/entries/:id/done', async (req, res) => {
+  const { id } = req.params;
+  const { done } = req.body ?? {};
+
+  if (typeof done !== 'boolean') {
+    res.status(400).json({ error: 'done must be a boolean.' });
+    return;
+  }
+
+  try {
+    const updated = await prisma.entry.update({
+      where: { id },
+      data: { done },
+    });
+    res.json(updated);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'P2025') {
+      res.status(404).json({ error: 'Entry not found.' });
+      return;
+    }
+
+    res.status(500).json({ error: 'Unable to update entry.' });
+  }
+});
+
 app.delete('/api/entries/:id', async (req, res) => {
   const { id } = req.params;
 
