@@ -699,7 +699,7 @@ function EntryCard({ entry, isDeleting, onEdit, onDelete, onToggleDone }: EntryC
             onChange={() => onToggleDone(entry)}
             disabled={isDeleting}
           />
-          <span>{entry.done ? 'Cumplido' : 'Por cumplir'}</span>
+          <span>{entry.done ? '🌼 Dream come true' : '✨ Still a dream'}</span>
         </label>
       </div>
       <div className="entry-title">{entry.title}</div>
