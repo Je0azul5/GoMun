@@ -16,3 +16,14 @@ model Entry {
   done      Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+model Coupon {
+  id              String   @id @default(uuid())
+  title           String
+  description     String?
+  createdAt       DateTime @default(now())
+  unlocked        Boolean  @default(false)
+  redeemed        Boolean  @default(false)
+  redeemedAt      DateTime?
+  unlockCondition Json?
+}

@@ -13,6 +13,21 @@ type AgendaEntry = {
   userId: string;
 };
 
+type CouponUnlockCondition =
+  | { type: 'dreamCompleted'; value: string }
+  | { type: 'dreamCount'; value: number };
+
+type Coupon = {
+  id: string;
+  title: string;
+  description?: string | null;
+  createdAt: string;
+  unlocked: boolean;
+  redeemed: boolean;
+  redeemedAt?: string | null;
+  unlockCondition?: CouponUnlockCondition | null;
+};
+
 type AgendaSection = {
   letter: string;
   visible: AgendaEntry[];
@@ -20,9 +35,14 @@ type AgendaSection = {
   currentPage: number;
 };
 
+type UnlockToast = {
+  id: string;
+  message: string;
+};
+
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 const DEFAULT_USER_ID = (import.meta.env.VITE_DEFAULT_USER_ID ?? 'couple').trim() || 'couple';
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 15;
 
 const isLatinLetter = (char: string) => /^[A-Z]$/.test(char);
 
@@ -42,40 +62,83 @@ function formatDate(value?: string | null) {
   });
 }
 
+function describeUnlockCondition(
+  condition: CouponUnlockCondition | null | undefined,
+  entriesById: Map<string, AgendaEntry>
+) {
+  if (!condition) {
+    return 'Available as soon as it is written.';
+  }
+
+  if (condition.type === 'dreamCompleted') {
+    const targetDream = entriesById.get(condition.value);
+    return targetDream
+      ? `Unlock by fulfilling "${targetDream.title}".`
+      : 'Unlock by fulfilling a specific dream.';
+  }
+
+  return `Unlock after ${condition.value} dreams come true.`;
+}
+
 function App() {
   const [entries, setEntries] = useState<AgendaEntry[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'agenda' | 'search'>('agenda');
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [activeView, setActiveView] = useState<'agenda' | 'search' | 'coupons'>('agenda');
+  const [isEntryFormOpen, setIsEntryFormOpen] = useState(false);
+  const [isCouponFormOpen, setIsCouponFormOpen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [pageByLetter, setPageByLetter] = useState<Record<string, number>>({});
-  const [formState, setFormState] = useState({
+  const [entryFormState, setEntryFormState] = useState({
     title: '',
     note: '',
     userId: DEFAULT_USER_ID,
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [couponFormState, setCouponFormState] = useState({
+    title: '',
+    description: '',
+    unlockMode: 'manual' as 'manual' | 'dreamCompleted' | 'dreamCount',
+    dreamId: '',
+    dreamCount: '3',
+  });
+  const [submittingEntry, setSubmittingEntry] = useState(false);
+  const [submittingCoupon, setSubmittingCoupon] = useState(false);
+  const [entryFormError, setEntryFormError] = useState<string | null>(null);
+  const [couponFormError, setCouponFormError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [redeemingIds, setRedeemingIds] = useState<Set<string>>(new Set());
+  const [unlockToast, setUnlockToast] = useState<UnlockToast | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadEntries() {
+    async function loadData() {
       setLoading(true);
       setError(null);
 
       try {
-        const response = await fetch(`${API_BASE}/api/entries`);
+        const [entriesResponse, couponsResponse] = await Promise.all([
+          fetch(`${API_BASE}/api/entries`),
+          fetch(`${API_BASE}/api/coupons`),
+        ]);
 
-        if (!response.ok) {
-          throw new Error(`Unable to load entries (${response.status})`);
+        if (!entriesResponse.ok) {
+          throw new Error(`Unable to load dreams (${entriesResponse.status})`);
         }
 
-        const data: AgendaEntry[] = await response.json();
+        if (!couponsResponse.ok) {
+          throw new Error(`Unable to load coupons (${couponsResponse.status})`);
+        }
+
+        const [entriesData, couponsData]: [AgendaEntry[], Coupon[]] = await Promise.all([
+          entriesResponse.json(),
+          couponsResponse.json(),
+        ]);
+
         if (isMounted) {
-          setEntries(data);
+          setEntries(entriesData);
+          setCoupons(couponsData);
         }
       } catch (err) {
         if (isMounted) {
@@ -88,11 +151,21 @@ function App() {
       }
     }
 
-    loadEntries();
+    loadData();
     return () => {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!unlockToast) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setUnlockToast(null);
+    }, 3400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [unlockToast]);
 
   useEffect(() => {
     const totals: Record<string, number> = {};
@@ -102,8 +175,8 @@ function App() {
     }
 
     setPageByLetter((prev) => {
-      let changed = false;
       const next: Record<string, number> = {};
+      let changed = false;
 
       for (const [key, count] of Object.entries(totals)) {
         const totalPages = Math.max(1, Math.ceil(count / ITEMS_PER_PAGE));
@@ -115,24 +188,10 @@ function App() {
         }
       }
 
-      for (const key of Object.keys(prev)) {
-        if (!(key in totals)) {
-          changed = true;
-        }
-      }
-
-      if (!changed) {
-        if (Object.keys(prev).length === Object.keys(next).length) {
-          let identical = true;
-          for (const key of Object.keys(next)) {
-            if (prev[key] !== next[key]) {
-              identical = false;
-              break;
-            }
-          }
-          if (identical) {
-            return prev;
-          }
+      if (!changed && Object.keys(prev).length === Object.keys(next).length) {
+        const identical = Object.keys(next).every((key) => prev[key] === next[key]);
+        if (identical) {
+          return prev;
         }
       }
 
@@ -157,12 +216,10 @@ function App() {
           first.title.localeCompare(second.title, undefined, { sensitivity: 'base' })
         );
         const totalPages = Math.max(1, Math.ceil(orderedItems.length / ITEMS_PER_PAGE));
-        const currentPage = Math.min(
-          Math.max(pageByLetter[letter] ?? 1, 1),
-          totalPages
-        );
+        const currentPage = Math.min(Math.max(pageByLetter[letter] ?? 1, 1), totalPages);
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const visible = orderedItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
         return {
           letter,
           visible,
@@ -172,41 +229,82 @@ function App() {
       });
   }, [entries, pageByLetter]);
 
+  const entriesById = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
+  const completedDreams = useMemo(() => entries.filter((entry) => entry.done).length, [entries]);
   const isEditing = editingEntryId !== null;
 
   const openNewEntry = () => {
     setActiveView('agenda');
     setEditingEntryId(null);
-    setFormState({ title: '', note: '', userId: DEFAULT_USER_ID });
-    setFormError(null);
-    setIsFormOpen(true);
+    setEntryFormState({ title: '', note: '', userId: DEFAULT_USER_ID });
+    setEntryFormError(null);
+    setIsEntryFormOpen(true);
   };
 
   const openEditEntry = (entry: AgendaEntry) => {
     setEditingEntryId(entry.id);
-    setFormState({
+    setEntryFormState({
       title: entry.title,
       note: entry.note ?? '',
       userId: entry.userId ?? DEFAULT_USER_ID,
     });
-    setFormError(null);
-    setIsFormOpen(true);
+    setEntryFormError(null);
+    setIsEntryFormOpen(true);
   };
 
-  const closeForm = () => {
-    setIsFormOpen(false);
-    setFormError(null);
-    setFormState({ title: '', note: '', userId: DEFAULT_USER_ID });
+  const openCouponForm = () => {
+    setActiveView('coupons');
+    setCouponFormError(null);
+    setCouponFormState({
+      title: '',
+      description: '',
+      unlockMode: 'manual',
+      dreamId: '',
+      dreamCount: '3',
+    });
+    setIsCouponFormOpen(true);
+  };
+
+  const closeEntryForm = () => {
+    setIsEntryFormOpen(false);
+    setEntryFormError(null);
+    setEntryFormState({ title: '', note: '', userId: DEFAULT_USER_ID });
     setEditingEntryId(null);
+  };
+
+  const closeCouponForm = () => {
+    setIsCouponFormOpen(false);
+    setCouponFormError(null);
+    setCouponFormState({
+      title: '',
+      description: '',
+      unlockMode: 'manual',
+      dreamId: '',
+      dreamCount: '3',
+    });
+  };
+
+  const showUnlockToast = (unlockedCoupons: Coupon[]) => {
+    if (unlockedCoupons.length === 0) return;
+
+    const message =
+      unlockedCoupons.length === 1
+        ? `You unlocked a new coupon: ${unlockedCoupons[0].title}`
+        : `You unlocked ${unlockedCoupons.length} new coupons.`;
+
+    setUnlockToast({
+      id: `${Date.now()}-${unlockedCoupons[0].id}`,
+      message,
+    });
   };
 
   const handleSubmitEntry = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setFormError(null);
+    setEntryFormError(null);
 
-    const trimmedTitle = formState.title.trim();
+    const trimmedTitle = entryFormState.title.trim();
     if (!trimmedTitle) {
-      setFormError('Every dream needs a name.');
+      setEntryFormError('Every dream needs a name.');
       return;
     }
 
@@ -214,16 +312,16 @@ function App() {
       title: trimmedTitle,
     };
 
-    if (formState.note.trim()) {
-      payload.note = formState.note.trim();
+    if (entryFormState.note.trim()) {
+      payload.note = entryFormState.note.trim();
     }
 
     if (!isEditing) {
-      const trimmedUserId = formState.userId.trim();
+      const trimmedUserId = entryFormState.userId.trim();
       payload.userId = trimmedUserId || DEFAULT_USER_ID;
     }
 
-    setSubmitting(true);
+    setSubmittingEntry(true);
 
     try {
       const endpoint = isEditing
@@ -237,27 +335,98 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Unable to save entry (${response.status})`);
+        throw new Error(`Unable to save dream (${response.status})`);
       }
 
       const saved: AgendaEntry = await response.json();
       setEntries((prev) =>
         isEditing ? prev.map((entry) => (entry.id === saved.id ? saved : entry)) : [saved, ...prev]
       );
+
       if (!isEditing) {
         const key = letterKey(saved.title);
         setPageByLetter((prev) => ({ ...prev, [key]: 1 }));
       }
-      closeForm();
+
+      closeEntryForm();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Unable to save entry');
+      setEntryFormError(err instanceof Error ? err.message : 'Unable to save dream');
     } finally {
-      setSubmitting(false);
+      setSubmittingEntry(false);
+    }
+  };
+
+  const handleSubmitCoupon = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setCouponFormError(null);
+
+    const trimmedTitle = couponFormState.title.trim();
+    if (!trimmedTitle) {
+      setCouponFormError('Every coupon needs a title.');
+      return;
+    }
+
+    let unlockCondition: CouponUnlockCondition | null = null;
+
+    if (couponFormState.unlockMode === 'dreamCompleted') {
+      if (!couponFormState.dreamId) {
+        setCouponFormError('Pick the dream that should unlock this coupon.');
+        return;
+      }
+
+      unlockCondition = {
+        type: 'dreamCompleted',
+        value: couponFormState.dreamId,
+      };
+    }
+
+    if (couponFormState.unlockMode === 'dreamCount') {
+      const dreamCount = Number(couponFormState.dreamCount);
+
+      if (!Number.isInteger(dreamCount) || dreamCount <= 0) {
+        setCouponFormError('Use a valid number of completed dreams.');
+        return;
+      }
+
+      unlockCondition = {
+        type: 'dreamCount',
+        value: dreamCount,
+      };
+    }
+
+    setSubmittingCoupon(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/api/coupons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: trimmedTitle,
+          description: couponFormState.description.trim() || undefined,
+          unlockCondition,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to create coupon (${response.status})`);
+      }
+
+      const created: Coupon = await response.json();
+      setCoupons((prev) => [created, ...prev]);
+
+      if (created.unlocked) {
+        showUnlockToast([created]);
+      }
+
+      closeCouponForm();
+    } catch (err) {
+      setCouponFormError(err instanceof Error ? err.message : 'Unable to create coupon');
+    } finally {
+      setSubmittingCoupon(false);
     }
   };
 
   const handleDeleteEntry = async (entry: AgendaEntry) => {
-    // eslint-disable-next-line no-alert
     const confirmation = window.confirm(`Erase "${entry.title}" from your dreams?`);
     if (!confirmation) return;
 
@@ -278,7 +447,6 @@ function App() {
 
       setEntries((prev) => prev.filter((item) => item.id !== entry.id));
     } catch (err) {
-      // eslint-disable-next-line no-alert
       alert(err instanceof Error ? err.message : 'Unable to delete entry');
     } finally {
       setDeletingIds((prev) => {
@@ -304,12 +472,51 @@ function App() {
         throw new Error(`Unable to update entry (${response.status})`);
       }
 
-      const updated: AgendaEntry = await response.json();
-      setEntries((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      const data: { entry: AgendaEntry; unlockedCoupons: Coupon[] } = await response.json();
+
+      setEntries((prev) => prev.map((item) => (item.id === data.entry.id ? data.entry : item)));
+      if (data.unlockedCoupons.length > 0) {
+        setCoupons((prev) =>
+          prev.map((coupon) => data.unlockedCoupons.find((item) => item.id === coupon.id) ?? coupon)
+        );
+        showUnlockToast(data.unlockedCoupons);
+      }
     } catch (err) {
       setEntries((prev) => prev.map((item) => (item.id === entry.id ? { ...item, done: entry.done } : item)));
-      // eslint-disable-next-line no-alert
       alert(err instanceof Error ? err.message : 'Unable to update entry');
+    }
+  };
+
+  const handleRedeemCoupon = async (coupon: Coupon) => {
+    const nextRedeemed = !coupon.redeemed;
+
+    setRedeemingIds((prev) => {
+      const next = new Set(prev);
+      next.add(coupon.id);
+      return next;
+    });
+
+    try {
+      const response = await fetch(`${API_BASE}/api/coupons/${coupon.id}/redeem`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redeemed: nextRedeemed }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to update coupon (${response.status})`);
+      }
+
+      const updated: Coupon = await response.json();
+      setCoupons((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Unable to update coupon');
+    } finally {
+      setRedeemingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(coupon.id);
+        return next;
+      });
     }
   };
 
@@ -324,8 +531,7 @@ function App() {
           <img src={logoSrc} alt="GoMun emblem" className="brand-mark" />
           <h1>GoMun</h1>
         </div>
-        <p>Every shared dream — one letter at a time.</p>
-        <p>No dreamers to define — just you and me in this story.</p>
+        <p>Every shared dream, every small promise, every future kept close.</p>
         <div className="agenda-header-actions">
           <nav className="agenda-nav" aria-label="Primary navigation">
             <button
@@ -342,14 +548,27 @@ function App() {
             >
               Search
             </button>
+            <button
+              type="button"
+              className={`nav-link${activeView === 'coupons' ? ' active' : ''}`}
+              onClick={() => setActiveView('coupons')}
+            >
+              Coupons
+            </button>
           </nav>
-          <button className="new-entry-button" type="button" onClick={openNewEntry}>
-            + New Dream
-          </button>
+
+          <div className="header-action-row">
+            <button className="new-entry-button" type="button" onClick={openNewEntry}>
+              + New Dream
+            </button>
+            <button className="new-entry-button secondary-button" type="button" onClick={openCouponForm}>
+              + New Coupon
+            </button>
+          </div>
         </div>
       </header>
 
-      {activeView === 'agenda' ? (
+      {activeView === 'agenda' && (
         <AgendaView
           sections={groupedSections}
           loading={loading}
@@ -360,7 +579,9 @@ function App() {
           onToggleDone={handleToggleDone}
           onPageChange={handlePageChange}
         />
-      ) : (
+      )}
+
+      {activeView === 'search' && (
         <SearchView
           entries={entries}
           loading={loading}
@@ -372,8 +593,28 @@ function App() {
         />
       )}
 
-      {isFormOpen && (
-        <div className="entry-modal-backdrop" role="presentation" onClick={closeForm}>
+      {activeView === 'coupons' && (
+        <CouponsView
+          coupons={coupons}
+          entriesById={entriesById}
+          completedDreams={completedDreams}
+          loading={loading}
+          error={error}
+          redeemingIds={redeemingIds}
+          onCreateCoupon={openCouponForm}
+          onRedeemCoupon={handleRedeemCoupon}
+        />
+      )}
+
+      {unlockToast && (
+        <div key={unlockToast.id} className="unlock-toast" role="status" aria-live="polite">
+          <span className="unlock-toast-mark">+</span>
+          <span>{unlockToast.message}</span>
+        </div>
+      )}
+
+      {isEntryFormOpen && (
+        <div className="entry-modal-backdrop" role="presentation" onClick={closeEntryForm}>
           <div
             className="entry-modal"
             role="dialog"
@@ -383,7 +624,7 @@ function App() {
           >
             <header className="entry-modal-header">
               <h2 id="entry-modal-title">{isEditing ? 'Edit Dream' : 'New Dream'}</h2>
-              <button className="modal-close" type="button" onClick={closeForm} aria-label="Close">
+              <button className="modal-close" type="button" onClick={closeEntryForm} aria-label="Close">
                 ×
               </button>
             </header>
@@ -394,8 +635,10 @@ function App() {
                 <input
                   type="text"
                   name="title"
-                  value={formState.title}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
+                  value={entryFormState.title}
+                  onChange={(event) =>
+                    setEntryFormState((prev) => ({ ...prev, title: event.target.value }))
+                  }
                   placeholder="Visit London"
                   required
                 />
@@ -407,9 +650,9 @@ function App() {
                   <input
                     type="text"
                     name="userId"
-                    value={formState.userId}
+                    value={entryFormState.userId}
                     onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, userId: event.target.value }))
+                      setEntryFormState((prev) => ({ ...prev, userId: event.target.value }))
                     }
                     placeholder="couple"
                   />
@@ -420,27 +663,147 @@ function App() {
                 <span>Note</span>
                 <textarea
                   name="note"
-                  value={formState.note}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, note: event.target.value }))}
-                  placeholder="I'd like to go the moon with you someday."
+                  value={entryFormState.note}
+                  onChange={(event) =>
+                    setEntryFormState((prev) => ({ ...prev, note: event.target.value }))
+                  }
+                  placeholder="A small wish we want to make real."
                   rows={3}
                 />
               </label>
 
-              {formError && <p className="form-error">{formError}</p>}
+              {entryFormError && <p className="form-error">{entryFormError}</p>}
 
               <footer className="form-actions">
-                <button type="button" className="ghost-button" onClick={closeForm} disabled={submitting}>
+                <button type="button" className="ghost-button" onClick={closeEntryForm} disabled={submittingEntry}>
                   Cancel
                 </button>
-                <button type="submit" disabled={submitting}>
-                  {submitting
+                <button type="submit" disabled={submittingEntry}>
+                  {submittingEntry
                     ? isEditing
-                      ? 'Updating…'
-                      : 'Inscribing…'
+                      ? 'Updating...'
+                      : 'Saving...'
                     : isEditing
                       ? 'Update Dream'
                       : 'Save Dream'}
+                </button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isCouponFormOpen && (
+        <div className="entry-modal-backdrop" role="presentation" onClick={closeCouponForm}>
+          <div
+            className="entry-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="coupon-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="entry-modal-header">
+              <h2 id="coupon-modal-title">New Coupon</h2>
+              <button className="modal-close" type="button" onClick={closeCouponForm} aria-label="Close">
+                ×
+              </button>
+            </header>
+
+            <form className="entry-form" onSubmit={handleSubmitCoupon}>
+              <label className="form-field">
+                <span>Coupon</span>
+                <input
+                  type="text"
+                  name="title"
+                  value={couponFormState.title}
+                  onChange={(event) =>
+                    setCouponFormState((prev) => ({ ...prev, title: event.target.value }))
+                  }
+                  placeholder="Breakfast in bed"
+                  required
+                />
+              </label>
+
+              <label className="form-field">
+                <span>Description</span>
+                <textarea
+                  name="description"
+                  value={couponFormState.description}
+                  onChange={(event) =>
+                    setCouponFormState((prev) => ({ ...prev, description: event.target.value }))
+                  }
+                  placeholder="A quiet promise, saved for the right day."
+                  rows={3}
+                />
+              </label>
+
+              <label className="form-field">
+                <span>Unlock Rule</span>
+                <select
+                  name="unlockMode"
+                  value={couponFormState.unlockMode}
+                  onChange={(event) =>
+                    setCouponFormState((prev) => ({
+                      ...prev,
+                      unlockMode: event.target.value as 'manual' | 'dreamCompleted' | 'dreamCount',
+                    }))
+                  }
+                >
+                  <option value="manual">No condition</option>
+                  <option value="dreamCompleted">Specific dream</option>
+                  <option value="dreamCount">Completed dream count</option>
+                </select>
+              </label>
+
+              {couponFormState.unlockMode === 'dreamCompleted' && (
+                <label className="form-field">
+                  <span>Dream to unlock it</span>
+                  <select
+                    name="dreamId"
+                    value={couponFormState.dreamId}
+                    onChange={(event) =>
+                      setCouponFormState((prev) => ({ ...prev, dreamId: event.target.value }))
+                    }
+                  >
+                    <option value="">Choose a dream</option>
+                    {entries
+                      .slice()
+                      .sort((first, second) =>
+                        first.title.localeCompare(second.title, undefined, { sensitivity: 'base' })
+                      )
+                      .map((entry) => (
+                        <option key={entry.id} value={entry.id}>
+                          {entry.title}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+
+              {couponFormState.unlockMode === 'dreamCount' && (
+                <label className="form-field">
+                  <span>Completed dreams required</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    name="dreamCount"
+                    value={couponFormState.dreamCount}
+                    onChange={(event) =>
+                      setCouponFormState((prev) => ({ ...prev, dreamCount: event.target.value }))
+                    }
+                  />
+                </label>
+              )}
+
+              {couponFormError && <p className="form-error">{couponFormError}</p>}
+
+              <footer className="form-actions">
+                <button type="button" className="ghost-button" onClick={closeCouponForm} disabled={submittingCoupon}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={submittingCoupon}>
+                  {submittingCoupon ? 'Writing...' : 'Save Coupon'}
                 </button>
               </footer>
             </form>
@@ -473,7 +836,7 @@ function AgendaView({
   onPageChange,
 }: AgendaViewProps) {
   if (loading) {
-    return <p className="agenda-status">Summoning your dreams adventures…</p>;
+    return <p className="agenda-status">Gathering your dreams...</p>;
   }
 
   if (error) {
@@ -481,7 +844,7 @@ function AgendaView({
   }
 
   if (sections.length === 0) {
-    return <p className="agenda-status">Our first dream together.</p>;
+    return <p className="agenda-status">Write the first dream and start the story.</p>;
   }
 
   return (
@@ -609,7 +972,7 @@ function SearchView({ entries, loading, error, deletingIds, onEdit, onDelete, on
             className="search-input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search dreams by title, note, user, or date…"
+            placeholder="Search dreams by title, note, user, or date..."
             aria-label="Search dreams"
           />
           {query && (
@@ -619,33 +982,29 @@ function SearchView({ entries, loading, error, deletingIds, onEdit, onDelete, on
           )}
         </div>
 
-        {loading && <p className="agenda-status">Summoning your dreams…</p>}
-        {!loading && error && <p className="agenda-status error">{error}</p>}
-        {!loading && !error && entries.length === 0 && (
-          <p className="agenda-status">ur first dream together</p>
-        )}
-
-        {!loading && !error && entries.length > 0 && (
+        {loading && <p className="search-status">Reading your dream catalog...</p>}
+        {!loading && error && <p className="search-status agenda-status error">{error}</p>}
+        {!loading && !error && (
           <p className="search-summary">
-            {query
-              ? `${filtered.length} dream${filtered.length === 1 ? '' : 's'} match “${query}”.`
-              : `Browsing all ${entries.length} dream${entries.length === 1 ? '' : 's'}.`}
+            {normalizedQuery
+              ? `Found ${filtered.length} dreams for "${query.trim()}".`
+              : `Browsing all ${entries.length} dreams.`}
           </p>
-        )}
-
-        {!loading && !error && filtered.length === 0 && entries.length > 0 && (
-          <p className="agenda-status search-status">No dreams match your incantation.</p>
         )}
       </div>
 
+      {!loading && !error && sections.length === 0 && (
+        <p className="search-status">No dreams match this search.</p>
+      )}
+
       {!loading &&
         !error &&
-        filtered.length > 0 &&
         sections.map(({ letter, visible }) => (
           <section key={letter} className="book-section">
             <header className="section-header">
               <span className="section-letter">{letter}</span>
             </header>
+
             <ul className="entries-list search-results">
               {visible.map((entry) => (
                 <EntryCard
@@ -664,6 +1023,128 @@ function SearchView({ entries, loading, error, deletingIds, onEdit, onDelete, on
   );
 }
 
+type CouponsViewProps = {
+  coupons: Coupon[];
+  entriesById: Map<string, AgendaEntry>;
+  completedDreams: number;
+  loading: boolean;
+  error: string | null;
+  redeemingIds: Set<string>;
+  onCreateCoupon: () => void;
+  onRedeemCoupon: (coupon: Coupon) => void;
+};
+
+function CouponsView({
+  coupons,
+  entriesById,
+  completedDreams,
+  loading,
+  error,
+  redeemingIds,
+  onCreateCoupon,
+  onRedeemCoupon,
+}: CouponsViewProps) {
+  const redeemedCoupons = coupons.filter((coupon) => coupon.redeemed);
+  const unlockedCoupons = coupons.filter((coupon) => coupon.unlocked && !coupon.redeemed);
+  const lockedCoupons = coupons.filter((coupon) => !coupon.unlocked);
+
+  if (loading) {
+    return <p className="agenda-status">Folding your coupons into place...</p>;
+  }
+
+  if (error) {
+    return <p className="agenda-status error">{error}</p>;
+  }
+
+  return (
+    <div className="book-wrapper coupons-wrapper">
+      <div className="coupons-lead">
+        <div>
+          <p className="coupon-kicker">Collected promises</p>
+          <h2 className="coupons-title">Coupons for the dreams that already moved the story forward.</h2>
+        </div>
+        <div className="coupons-summary">
+          <span>{completedDreams} dreams fulfilled</span>
+          <span>{unlockedCoupons.length} available coupons</span>
+        </div>
+        <button type="button" className="new-entry-button secondary-button" onClick={onCreateCoupon}>
+          + Create Coupon
+        </button>
+      </div>
+
+      {coupons.length === 0 && (
+        <p className="agenda-status">There are no coupons yet. Create the first one from here.</p>
+      )}
+
+      {unlockedCoupons.length > 0 && (
+        <CouponShelf
+          title="Available"
+          tone="available"
+          coupons={unlockedCoupons}
+          entriesById={entriesById}
+          redeemingIds={redeemingIds}
+          onRedeemCoupon={onRedeemCoupon}
+        />
+      )}
+
+      {lockedCoupons.length > 0 && (
+        <CouponShelf
+          title="Locked"
+          tone="locked"
+          coupons={lockedCoupons}
+          entriesById={entriesById}
+          redeemingIds={redeemingIds}
+          onRedeemCoupon={onRedeemCoupon}
+        />
+      )}
+
+      {redeemedCoupons.length > 0 && (
+        <CouponShelf
+          title="Redeemed"
+          tone="redeemed"
+          coupons={redeemedCoupons}
+          entriesById={entriesById}
+          redeemingIds={redeemingIds}
+          onRedeemCoupon={onRedeemCoupon}
+        />
+      )}
+    </div>
+  );
+}
+
+type CouponShelfProps = {
+  title: string;
+  tone: 'available' | 'locked' | 'redeemed';
+  coupons: Coupon[];
+  entriesById: Map<string, AgendaEntry>;
+  redeemingIds: Set<string>;
+  onRedeemCoupon: (coupon: Coupon) => void;
+};
+
+function CouponShelf({ title, tone, coupons, entriesById, redeemingIds, onRedeemCoupon }: CouponShelfProps) {
+  return (
+    <section className="coupon-shelf">
+      <header className="coupon-shelf-header">
+        <h3>{title}</h3>
+        <span>{coupons.length}</span>
+      </header>
+
+      <div className="coupon-grid">
+        {coupons.map((coupon) => (
+          <CouponCard
+            key={coupon.id}
+            coupon={coupon}
+            tone={tone}
+            unlockCopy={describeUnlockCondition(coupon.unlockCondition, entriesById)}
+            isRedeeming={redeemingIds.has(coupon.id)}
+            onRedeemCoupon={onRedeemCoupon}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 type EntryCardProps = {
   entry: AgendaEntry;
   isDeleting: boolean;
@@ -676,12 +1157,11 @@ function EntryCard({ entry, isDeleting, onEdit, onDelete, onToggleDone }: EntryC
   return (
     <li className={`entry-card${entry.done ? ' entry-card-done' : ''}`}>
       <div className="entry-actions">
-        <button
-          type="button"
-          className="entry-edit-button"
-          onClick={() => onEdit(entry)}
-          disabled={isDeleting}
-        >
+        <label className="entry-done-toggle">
+          <input type="checkbox" checked={entry.done} onChange={() => onToggleDone(entry)} />
+          <span>{entry.done ? '🌼 Dream come true' : '✨ Still a dream'}</span>
+        </label>
+        <button type="button" className="entry-edit-button" onClick={() => onEdit(entry)}>
           Edit
         </button>
         <button
@@ -690,25 +1170,71 @@ function EntryCard({ entry, isDeleting, onEdit, onDelete, onToggleDone }: EntryC
           onClick={() => onDelete(entry)}
           disabled={isDeleting}
         >
-          {isDeleting ? 'Deleting…' : 'Delete'}
+          {isDeleting ? 'Deleting...' : 'Delete'}
         </button>
-        <label className="entry-done-toggle">
-          <input
-            type="checkbox"
-            checked={entry.done}
-            onChange={() => onToggleDone(entry)}
-            disabled={isDeleting}
-          />
-          <span>{entry.done ? '🌼 Dream come true' : '✨ Still a dream'}</span>
-        </label>
       </div>
-      <div className="entry-title">{entry.title}</div>
+
+      <strong className="entry-title">{entry.title}</strong>
       {entry.note && <p className="entry-note">{entry.note}</p>}
-      <footer className="entry-meta">
-        {entry.date && <span>{formatDate(entry.date)}</span>}
+
+      <div className="entry-meta">
         <span>{formatDate(entry.createdAt)}</span>
-      </footer>
+      </div>
     </li>
+  );
+}
+
+type CouponCardProps = {
+  coupon: Coupon;
+  tone: 'available' | 'locked' | 'redeemed';
+  unlockCopy: string;
+  isRedeeming: boolean;
+  onRedeemCoupon: (coupon: Coupon) => void;
+};
+
+function CouponCard({ coupon, tone, unlockCopy, isRedeeming, onRedeemCoupon }: CouponCardProps) {
+  const statusLabel =
+    tone === 'locked' ? 'Locked' : tone === 'redeemed' ? 'Redeemed' : 'Unlocked';
+
+  return (
+    <article className={`coupon-card coupon-card-${tone}`}>
+      <div className="coupon-perforation" aria-hidden="true" />
+      <div className="coupon-card-top">
+        <span className={`coupon-status coupon-status-${tone}`}>{statusLabel}</span>
+        <span className="coupon-date">{formatDate(coupon.createdAt)}</span>
+      </div>
+
+      <div className="coupon-copy">
+        <h4>{coupon.title}</h4>
+        {coupon.description ? <p>{coupon.description}</p> : <p>{unlockCopy}</p>}
+      </div>
+
+      <div className="coupon-footer">
+        {tone === 'locked' && (
+          <p className="coupon-hint">Locked. {unlockCopy}</p>
+        )}
+
+        {tone === 'available' && (
+          <>
+            <p className="coupon-hint">{unlockCopy}</p>
+            <button type="button" className="coupon-action" onClick={() => onRedeemCoupon(coupon)} disabled={isRedeeming}>
+              {isRedeeming ? 'Saving...' : 'Redeem'}
+            </button>
+          </>
+        )}
+
+        {tone === 'redeemed' && (
+          <>
+            <p className="coupon-hint">
+              Used on {formatDate(coupon.redeemedAt) || 'a special day'}.
+            </p>
+            <button type="button" className="coupon-action secondary" onClick={() => onRedeemCoupon(coupon)} disabled={isRedeeming}>
+              {isRedeeming ? 'Saving...' : 'Mark unused'}
+            </button>
+          </>
+        )}
+      </div>
+    </article>
   );
 }
 
