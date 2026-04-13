@@ -80,6 +80,46 @@ function describeUnlockCondition(
   return `Unlock after ${condition.value} dreams come true.`;
 }
 
+function getCouponFormState(coupon?: Coupon | null) {
+  if (!coupon) {
+    return {
+      title: '',
+      description: '',
+      unlockMode: 'manual' as const,
+      dreamId: '',
+      dreamCount: '3',
+    };
+  }
+
+  if (coupon.unlockCondition?.type === 'dreamCompleted') {
+    return {
+      title: coupon.title,
+      description: coupon.description ?? '',
+      unlockMode: 'dreamCompleted' as const,
+      dreamId: coupon.unlockCondition.value,
+      dreamCount: '3',
+    };
+  }
+
+  if (coupon.unlockCondition?.type === 'dreamCount') {
+    return {
+      title: coupon.title,
+      description: coupon.description ?? '',
+      unlockMode: 'dreamCount' as const,
+      dreamId: '',
+      dreamCount: String(coupon.unlockCondition.value),
+    };
+  }
+
+  return {
+    title: coupon.title,
+    description: coupon.description ?? '',
+    unlockMode: 'manual' as const,
+    dreamId: '',
+    dreamCount: '3',
+  };
+}
+
 function App() {
   const [entries, setEntries] = useState<AgendaEntry[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -89,19 +129,14 @@ function App() {
   const [isEntryFormOpen, setIsEntryFormOpen] = useState(false);
   const [isCouponFormOpen, setIsCouponFormOpen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
   const [pageByLetter, setPageByLetter] = useState<Record<string, number>>({});
   const [entryFormState, setEntryFormState] = useState({
     title: '',
     note: '',
     userId: DEFAULT_USER_ID,
   });
-  const [couponFormState, setCouponFormState] = useState({
-    title: '',
-    description: '',
-    unlockMode: 'manual' as 'manual' | 'dreamCompleted' | 'dreamCount',
-    dreamId: '',
-    dreamCount: '3',
-  });
+  const [couponFormState, setCouponFormState] = useState(getCouponFormState());
   const [submittingEntry, setSubmittingEntry] = useState(false);
   const [submittingCoupon, setSubmittingCoupon] = useState(false);
   const [entryFormError, setEntryFormError] = useState<string | null>(null);
@@ -231,7 +266,8 @@ function App() {
 
   const entriesById = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
   const completedDreams = useMemo(() => entries.filter((entry) => entry.done).length, [entries]);
-  const isEditing = editingEntryId !== null;
+  const isEditingEntry = editingEntryId !== null;
+  const isEditingCoupon = editingCouponId !== null;
 
   const openNewEntry = () => {
     setActiveView('agenda');
@@ -254,14 +290,17 @@ function App() {
 
   const openCouponForm = () => {
     setActiveView('coupons');
+    setEditingCouponId(null);
     setCouponFormError(null);
-    setCouponFormState({
-      title: '',
-      description: '',
-      unlockMode: 'manual',
-      dreamId: '',
-      dreamCount: '3',
-    });
+    setCouponFormState(getCouponFormState());
+    setIsCouponFormOpen(true);
+  };
+
+  const openEditCoupon = (coupon: Coupon) => {
+    setActiveView('coupons');
+    setEditingCouponId(coupon.id);
+    setCouponFormError(null);
+    setCouponFormState(getCouponFormState(coupon));
     setIsCouponFormOpen(true);
   };
 
@@ -274,14 +313,9 @@ function App() {
 
   const closeCouponForm = () => {
     setIsCouponFormOpen(false);
+    setEditingCouponId(null);
     setCouponFormError(null);
-    setCouponFormState({
-      title: '',
-      description: '',
-      unlockMode: 'manual',
-      dreamId: '',
-      dreamCount: '3',
-    });
+    setCouponFormState(getCouponFormState());
   };
 
   const showUnlockToast = (unlockedCoupons: Coupon[]) => {
@@ -316,7 +350,7 @@ function App() {
       payload.note = entryFormState.note.trim();
     }
 
-    if (!isEditing) {
+    if (!isEditingEntry) {
       const trimmedUserId = entryFormState.userId.trim();
       payload.userId = trimmedUserId || DEFAULT_USER_ID;
     }
@@ -324,12 +358,12 @@ function App() {
     setSubmittingEntry(true);
 
     try {
-      const endpoint = isEditing
+      const endpoint = isEditingEntry
         ? `${API_BASE}/api/entries/${editingEntryId}`
         : `${API_BASE}/api/entries`;
 
       const response = await fetch(endpoint, {
-        method: isEditing ? 'PUT' : 'POST',
+        method: isEditingEntry ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -340,10 +374,10 @@ function App() {
 
       const saved: AgendaEntry = await response.json();
       setEntries((prev) =>
-        isEditing ? prev.map((entry) => (entry.id === saved.id ? saved : entry)) : [saved, ...prev]
+        isEditingEntry ? prev.map((entry) => (entry.id === saved.id ? saved : entry)) : [saved, ...prev]
       );
 
-      if (!isEditing) {
+      if (!isEditingEntry) {
         const key = letterKey(saved.title);
         setPageByLetter((prev) => ({ ...prev, [key]: 1 }));
       }
@@ -397,8 +431,12 @@ function App() {
     setSubmittingCoupon(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/coupons`, {
-        method: 'POST',
+      const endpoint = isEditingCoupon
+        ? `${API_BASE}/api/coupons/${editingCouponId}`
+        : `${API_BASE}/api/coupons`;
+
+      const response = await fetch(endpoint, {
+        method: isEditingCoupon ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: trimmedTitle,
@@ -408,19 +446,21 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Unable to create coupon (${response.status})`);
+        throw new Error(`Unable to save coupon (${response.status})`);
       }
 
-      const created: Coupon = await response.json();
-      setCoupons((prev) => [created, ...prev]);
+      const saved: Coupon = await response.json();
+      setCoupons((prev) =>
+        isEditingCoupon ? prev.map((coupon) => (coupon.id === saved.id ? saved : coupon)) : [saved, ...prev]
+      );
 
-      if (created.unlocked) {
-        showUnlockToast([created]);
+      if (!isEditingCoupon && saved.unlocked) {
+        showUnlockToast([saved]);
       }
 
       closeCouponForm();
     } catch (err) {
-      setCouponFormError(err instanceof Error ? err.message : 'Unable to create coupon');
+      setCouponFormError(err instanceof Error ? err.message : 'Unable to save coupon');
     } finally {
       setSubmittingCoupon(false);
     }
@@ -602,6 +642,7 @@ function App() {
           error={error}
           redeemingIds={redeemingIds}
           onCreateCoupon={openCouponForm}
+          onEditCoupon={openEditCoupon}
           onRedeemCoupon={handleRedeemCoupon}
         />
       )}
@@ -623,7 +664,7 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="entry-modal-header">
-              <h2 id="entry-modal-title">{isEditing ? 'Edit Dream' : 'New Dream'}</h2>
+              <h2 id="entry-modal-title">{isEditingEntry ? 'Edit Dream' : 'New Dream'}</h2>
               <button className="modal-close" type="button" onClick={closeEntryForm} aria-label="Close">
                 ×
               </button>
@@ -644,7 +685,7 @@ function App() {
                 />
               </label>
 
-              {!isEditing && (
+              {!isEditingEntry && (
                 <label className="form-field">
                   <span>Dreamer</span>
                   <input
@@ -680,10 +721,10 @@ function App() {
                 </button>
                 <button type="submit" disabled={submittingEntry}>
                   {submittingEntry
-                    ? isEditing
+                    ? isEditingEntry
                       ? 'Updating...'
                       : 'Saving...'
-                    : isEditing
+                    : isEditingEntry
                       ? 'Update Dream'
                       : 'Save Dream'}
                 </button>
@@ -703,7 +744,7 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="entry-modal-header">
-              <h2 id="coupon-modal-title">New Coupon</h2>
+              <h2 id="coupon-modal-title">{isEditingCoupon ? 'Edit Coupon' : 'New Coupon'}</h2>
               <button className="modal-close" type="button" onClick={closeCouponForm} aria-label="Close">
                 ×
               </button>
@@ -803,7 +844,7 @@ function App() {
                   Cancel
                 </button>
                 <button type="submit" disabled={submittingCoupon}>
-                  {submittingCoupon ? 'Writing...' : 'Save Coupon'}
+                  {submittingCoupon ? 'Writing...' : isEditingCoupon ? 'Update Coupon' : 'Save Coupon'}
                 </button>
               </footer>
             </form>
@@ -1031,6 +1072,7 @@ type CouponsViewProps = {
   error: string | null;
   redeemingIds: Set<string>;
   onCreateCoupon: () => void;
+  onEditCoupon: (coupon: Coupon) => void;
   onRedeemCoupon: (coupon: Coupon) => void;
 };
 
@@ -1042,6 +1084,7 @@ function CouponsView({
   error,
   redeemingIds,
   onCreateCoupon,
+  onEditCoupon,
   onRedeemCoupon,
 }: CouponsViewProps) {
   const redeemedCoupons = coupons.filter((coupon) => coupon.redeemed);
@@ -1083,6 +1126,7 @@ function CouponsView({
           coupons={unlockedCoupons}
           entriesById={entriesById}
           redeemingIds={redeemingIds}
+          onEditCoupon={onEditCoupon}
           onRedeemCoupon={onRedeemCoupon}
         />
       )}
@@ -1094,6 +1138,7 @@ function CouponsView({
           coupons={lockedCoupons}
           entriesById={entriesById}
           redeemingIds={redeemingIds}
+          onEditCoupon={onEditCoupon}
           onRedeemCoupon={onRedeemCoupon}
         />
       )}
@@ -1105,6 +1150,7 @@ function CouponsView({
           coupons={redeemedCoupons}
           entriesById={entriesById}
           redeemingIds={redeemingIds}
+          onEditCoupon={onEditCoupon}
           onRedeemCoupon={onRedeemCoupon}
         />
       )}
@@ -1118,10 +1164,19 @@ type CouponShelfProps = {
   coupons: Coupon[];
   entriesById: Map<string, AgendaEntry>;
   redeemingIds: Set<string>;
+  onEditCoupon: (coupon: Coupon) => void;
   onRedeemCoupon: (coupon: Coupon) => void;
 };
 
-function CouponShelf({ title, tone, coupons, entriesById, redeemingIds, onRedeemCoupon }: CouponShelfProps) {
+function CouponShelf({
+  title,
+  tone,
+  coupons,
+  entriesById,
+  redeemingIds,
+  onEditCoupon,
+  onRedeemCoupon,
+}: CouponShelfProps) {
   return (
     <section className="coupon-shelf">
       <header className="coupon-shelf-header">
@@ -1137,6 +1192,7 @@ function CouponShelf({ title, tone, coupons, entriesById, redeemingIds, onRedeem
             tone={tone}
             unlockCopy={describeUnlockCondition(coupon.unlockCondition, entriesById)}
             isRedeeming={redeemingIds.has(coupon.id)}
+            onEditCoupon={onEditCoupon}
             onRedeemCoupon={onRedeemCoupon}
           />
         ))}
@@ -1189,10 +1245,11 @@ type CouponCardProps = {
   tone: 'available' | 'locked' | 'redeemed';
   unlockCopy: string;
   isRedeeming: boolean;
+  onEditCoupon: (coupon: Coupon) => void;
   onRedeemCoupon: (coupon: Coupon) => void;
 };
 
-function CouponCard({ coupon, tone, unlockCopy, isRedeeming, onRedeemCoupon }: CouponCardProps) {
+function CouponCard({ coupon, tone, unlockCopy, isRedeeming, onEditCoupon, onRedeemCoupon }: CouponCardProps) {
   const statusLabel =
     tone === 'locked' ? 'Locked' : tone === 'redeemed' ? 'Redeemed' : 'Unlocked';
 
@@ -1210,9 +1267,11 @@ function CouponCard({ coupon, tone, unlockCopy, isRedeeming, onRedeemCoupon }: C
       </div>
 
       <div className="coupon-footer">
-        {tone === 'locked' && (
-          <p className="coupon-hint">Locked. {unlockCopy}</p>
-        )}
+        <button type="button" className="entry-edit-button" onClick={() => onEditCoupon(coupon)}>
+          Edit
+        </button>
+
+       
 
         {tone === 'available' && (
           <>

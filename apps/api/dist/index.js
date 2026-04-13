@@ -621,6 +621,42 @@ app.post("/api/coupons", async (req, res) => {
     res.status(500).json({ error: "Unable to create coupon." });
   }
 });
+app.put("/api/coupons/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, description, unlockCondition } = req.body ?? {};
+  if (!id) {
+    res.status(400).json({ error: "Coupon id is required." });
+    return;
+  }
+  if (typeof title !== "string" || !title.trim()) {
+    res.status(400).json({ error: "Title is required." });
+    return;
+  }
+  const parsedCondition = parseUnlockCondition(unlockCondition);
+  const context = await getUnlockContext(prisma);
+  try {
+    const current = await prisma.coupon.findUnique({ where: { id } });
+    if (!current) {
+      res.status(404).json({ error: "Coupon not found." });
+      return;
+    }
+    const unlocked = current.redeemed ? true : shouldUnlockCoupon(parsedCondition, context);
+    const updated = await prisma.coupon.update({
+      where: { id },
+      data: {
+        title: title.trim(),
+        description: typeof description === "string" && description.trim() ? description.trim() : null,
+        unlockCondition: parsedCondition ? parsedCondition : import_client.Prisma.JsonNull,
+        unlocked,
+        redeemed: unlocked ? current.redeemed : false,
+        redeemedAt: unlocked ? current.redeemedAt : null
+      }
+    });
+    res.json(updated);
+  } catch {
+    res.status(500).json({ error: "Unable to update coupon." });
+  }
+});
 app.patch("/api/coupons/:id/redeem", async (req, res) => {
   const { id } = req.params;
   const { redeemed } = req.body ?? {};
