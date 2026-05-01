@@ -61,9 +61,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_A1396C7357864DD4B7BDF7504902B520 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_14B4497AD0B74752AD54A5A0F11B4C03 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_33EE12076CAA4BC9A21E95FC67CDC521 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_B230E1769DFA4ECC897C6399D2532184 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_FB7ED8BFC80F4BA19D22048F9453FEC8 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_4C6030F67D244187894F5CFFF1208F18 }}
       # 🔟 Set startup command in Azure
       - name: Set startup command
         uses: azure/appservice-settings@v1
