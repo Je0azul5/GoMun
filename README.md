@@ -88,7 +88,7 @@ Backend → http://localhost:8080/api
 
 ## ☁️ Deployment (Azure)
 
-1. Create a **Neon project** (Postgres) and copy the pooled `postgresql://` connection string  
+1. Create a **Neon project** (Postgres) and copy the pooled `postgresql://` connection string  / neon
 2. Create an **Azure Web App (Linux, Node 20)**  
 3. Add environment variables under **Configuration → Application settings** (`DATABASE_URL`, `PORT`, `DEFAULT_USER_ID`, `VITE_API_URL`, `VITE_DEFAULT_USER_ID`)  
 4. Deploy using **GitHub Actions** or `az webapp deploy`
