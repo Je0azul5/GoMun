@@ -68,7 +68,7 @@ jobs:
       - name: Set startup command
         uses: azure/appservice-settings@v1
         with:
-          app-name: 'gomun'
+          app-name: 'gomoon'
           app-settings-json: |
             [
               {
